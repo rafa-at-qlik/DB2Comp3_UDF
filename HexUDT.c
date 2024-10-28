@@ -18,7 +18,7 @@ AR_AO_EXPORTED int ar_addon_init(AR_ADDON_CONTEXT *context)
         transdef = GET_AR_AO_TRANSFORMATION_DEF();
         transdef->displayName = "hex_udt(X)";
         transdef->functionName = "hex_udt";
-        transdef->description = "hex_udt decodes given string X with decoder Y";
+        transdef->description = "hex_udt decodes cp273 string X";
         transdef->func = trans_hex_udt;
         transdef->nArgs = 1;
         AR_AO_REGISRATION->register_user_defined_transformation(transdef);
