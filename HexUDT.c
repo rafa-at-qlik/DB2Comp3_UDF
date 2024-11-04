@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <string.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include "ar_addon.h"
@@ -26,41 +25,299 @@ AR_AO_EXPORTED int ar_addon_init(AR_ADDON_CONTEXT *context)
         return 0;
 }
 
-// Complete lookup table for EBCDIC cp273 to ASCII conversion
-unsigned char ebcdic_to_ascii[256] = {
-        0x00,	0x01,	0x02,	0x03,	0x9C,	0x09,	0x86,	0x7F,	0x97,	0x8D,	0x8E,	0x0B,	0x0C,	0x0D,	0x0E,	0x0F,
-        0x10,	0x11,	0x12,	0x13,	0x9D,	0x85,	0x08,	0x87,	0x18,	0x19,	0x92,	0x8F,	0x1C,	0x1D,	0x1E,	0x1F,
-        0x80,	0x81,	0x82,	0x83,	0x84,	0x0A,	0x17,	0x1B,	0x88,	0x89,	0x8A,	0x8B,	0x8C,	0x05,	0x06,	0x07,
-        0x90,	0x91,	0x16,	0x93,	0x94,	0x95,	0x96,	0x04,	0x98,	0x99,	0x9A,	0x9B,	0x14,	0x15,	0x9E,	0x1A,
-        0x20,	0xA0,	0xE2,	0x7B,	0xE0,	0xE1,	0xE3,	0xE5,	0xE7,	0xF1,	0xC4,	0x2E,	0x3C,	0x28,	0x2B,	0x21,
-        0x26,	0xE9,	0xEA,	0xEB,	0xE8,	0xED,	0xEE,	0xEF,	0xEC,	0x7E,	0xDC,	0x24,	0x2A,	0x29,	0x3B,	0x5E,
-        0x2D,	0x2F,	0xC2,	0x5B,	0xC0,	0xC1,	0xC3,	0xC5,	0xC7,	0xD1,	0xF6,	0x2C,	0x25,	0x5F,	0x3E,	0x3F,
-        0xF8,	0xC9,	0xCA,	0xCB,	0xC8,	0xCD,	0xCE,	0xCF,	0xCC,	0x60,	0x3A,	0x23,	0xA7,	0x27,	0x3D,	0x22,
-        0xD8,	0x61,	0x62,	0x63,	0x64,	0x65,	0x66,	0x67,	0x68,	0x69,	0xAB,	0xBB,	0xF0,	0xFD,	0xFE,	0xB1,
-        0xB0,	0x6A,	0x6B,	0x6C,	0x6D,	0x6E,	0x6F,	0x70,	0x71,	0x72,	0xAA,	0xBA,	0xE6,	0xB8,	0xC6,	0xA4,
-        0xB5,	0xDF,	0x73,	0x74,	0x75,	0x76,	0x77,	0x78,	0x79,	0x7A,	0xA1,	0xBF,	0xD0,	0xDD,	0xDE,	0xAE,
-        0xA2,	0xA3,	0xA5,	0xB7,	0xA9,	0x40,	0xB6,	0xBC,	0xBD,	0xBE,	0xAC,	0x7C,	0xAF,	0xA8,	0xB4,	0xD7,
-        0xE4,	0x41,	0x42,	0x43,	0x44,	0x45,	0x46,	0x47,	0x48,	0x49,	0xAD,	0xF4,	0xA6,	0xF2,	0xF3,	0xF5,
-        0xFC,	0x4A,	0x4B,	0x4C,	0x4D,	0x4E,	0x4F,	0x50,	0x51,	0x52,	0xB9,	0xFB,	0x7D,	0xF9,	0xFA,	0xFF,
-        0xD6,	0xF7,	0x53,	0x54,	0x55,	0x56,	0x57,	0x58,	0x59,	0x5A,	0xB2,	0xD4,	0x5C,	0xD2,	0xD3,	0xD5,
-        0x30,	0x31,	0x32,	0x33,	0x34,	0x35,	0x36,	0x37,	0x38,	0x39,	0xB3,	0xDB,	0x5D,	0xD9,	0xDA,	0x9F
+
+typedef struct {
+    char code[3];  // Stores the two-character code as a string (like "00", "01", etc.)
+    char *description;  // Points to the corresponding description string (like "Null", "Ü", etc.)
+} CodeMap;
+
+// CP273 Mapping
+// Based on https://www.longpelaexpertise.com.au/toolsCode.php CP273
+CodeMap mappings[] = {
+        {"00", "00"},
+        {"01", "01"},
+        {"02", "02"},
+        {"03", "03"},
+        {"04", "04"},
+        {"05", "05"},
+        {"06", "06"},
+        {"07", "07"},
+        {"08", "08"},
+        {"09", "9"},
+        {"0A", ""},
+        {"0B", ""},
+        {"0C", ";"},
+        {"0D", ""},
+        {"0E", ""},
+        {"0F", ";"},
+        {"10", "10"},
+        {"11", "11"},
+        {"12", "12"},
+        {"13", "13"},
+        {"14", "14"},
+        {"15", "15"},
+        {"16", "16"},
+        {"17", "17"},
+        {"18", "18"},
+        {"19", "19"},
+        {"1A", ""},
+        {"1A", ""},
+        {"1B", ""},
+        {"1C", ""},
+        {"1D", ""},
+        {"1E", ""},
+        {"1F", ""},
+        {"20", ""},
+        {"21", ""},
+        {"22", ""},
+        {"23", ""},
+        {"24", ""},
+        {"25", ""},
+        {"26", ""},
+        {"27", "\n"},
+        {"28", ""},
+        {"29", ""},
+        {"2A", ""},
+        {"2B", ""},
+        {"2C", ""},
+        {"2D", ""},
+        {"2E", ""},
+        {"2F", ""},
+        {"30", "30"},
+        {"31", "31"},
+        {"32", "32"},
+        {"33", "33"},
+        {"34", "34"},
+        {"35", "35"},
+        {"36", "36"},
+        {"37", "37"},
+        {"38", "38"},
+        {"39", "39"},
+        {"3A", ""},
+        {"3B", ""},
+        {"3C", ""},
+        {"3D", ""},
+        {"3E", ""},
+        {"3F", ""},
+        {"40", ""},
+        {"41", "41"},
+        {"42", "â"},
+        {"43", "{"},
+        {"44", "à"},
+        {"45", "á"},
+        {"46", "ã"},
+        {"47", "å"},
+        {"48", "ç"},
+        {"49", "ñ"},
+        {"4A", "Ä"},
+        {"4B", "."},
+        {"4C", "<"},
+        {"4D", "("},
+        {"4E", "+"},
+        {"4F", "!"},
+        {"50", "&"},
+        {"51", "é"},
+        {"52", "ê"},
+        {"53", "ë"},
+        {"54", "è"},
+        {"55", "í"},
+        {"56", "î"},
+        {"57", "ï"},
+        {"58", "ì"},
+        {"59", "~"},
+        {"5A", "Ü"},
+        {"5B", "$"},
+        {"5C", "*"},
+        {"5D", ")"},
+        {"5E", ";"},
+        {"5F", "^"},
+        {"60", "-"},
+        {"61", "/"},
+        {"62", "Â"},
+        {"63", "["},
+        {"64", "À"},
+        {"65", "Á"},
+        {"66", "Ã"},
+        {"67", "$"},
+        {"68", "Ç"},
+        {"69", "Ñ"},
+        {"6A", "ö"},
+        {"6B", ","},
+        {"6C", "%"},
+        {"6D", "_"},
+        {"6E", ">"},
+        {"6F", "?"},
+        {"70", "ø"},
+        {"71", "É"},
+        {"72", "Ê"},
+        {"73", "Ë"},
+        {"74", "È"},
+        {"75", "Í"},
+        {"76", "Î"},
+        {"77", "Ï"},
+        {"78", "Ì"},
+        {"79", "`"},
+        {"7A", ":"},
+        {"7B", "#"},
+        {"7C", "§"},
+        {"7D", "'"},
+        {"7E", "="},
+        {"7F", "\""},
+        {"80", "Ø"},
+        {"81", "a"},
+        {"82", "b"},
+        {"83", "c"},
+        {"84", "d"},
+        {"85", "e"},
+        {"86", "f"},
+        {"87", "g"},
+        {"88", "h"},
+        {"89", "i"},
+        {"8A", "«"},
+        {"8B", "»"},
+        {"8C", "ð"},
+        {"8D", "ý"},
+        {"8E", "Þ"},
+        {"8F", "±"},
+        {"90", "º"},
+        {"91", "j"},
+        {"92", "k"},
+        {"93", "l"},
+        {"94", "m"},
+        {"95", "n"},
+        {"96", "o"},
+        {"97", "p"},
+        {"98", "q"},
+        {"99", "r"},
+        {"9A", "ª"},
+        {"9B", "º"},
+        {"9C", "æ"},
+        {"9D", "¸"},
+        {"9E", "Æ"},
+        {"9F", "¤"},
+        {"A0", "µ"},
+        {"A1", "ß"},
+        {"A2", "s"},
+        {"A3", "t"},
+        {"A4", "u"},
+        {"A5", "v"},
+        {"A6", "w"},
+        {"A7", "x"},
+        {"A8", "y"},
+        {"A9", "z"},
+        {"AA", "¡"},
+        {"AB", "¿"},
+        {"AC", "Ð"},
+        {"AD", "Ý"},
+        {"AE", "þ"},
+        {"AF", "®"},
+        {"B0", "¢"},
+        {"B1", "£"},
+        {"B2", "¥"},
+        {"B3", "·"},
+        {"B4", "©"},
+        {"B5", "@"},
+        {"B6", "¶"},
+        {"B7", "¼"},
+        {"B8", "½"},
+        {"B9", "¾"},
+        {"BA", "¬"},
+        {"BB", "|"},
+        {"BC", "¯"},
+        {"BD", "¨"},
+        {"BE", "´"},
+        {"BF", "×"},
+        {"C0", "ä"},
+        {"C1", "A"},
+        {"C2", "B"},
+        {"C3", "C"},
+        {"C4", "D"},
+        {"C5", "E"},
+        {"C6", "F"},
+        {"C7", "G"},
+        {"C8", "H"},
+        {"C9", "I"},
+        {"CA", ""}, // Syllable Hyphen
+        {"CB", "ô"},
+        {"CC", "¦"},
+        {"CD", "ò"},
+        {"CE", "ó"},
+        {"CF", "õ"},
+        {"D0", "ü"},
+        {"D1", "J"},
+        {"D2", "K"},
+        {"D3", "L"},
+        {"D4", "M"},
+        {"D5", "N"},
+        {"D6", "O"},
+        {"D7", "P"},
+        {"D8", "Q"},
+        {"D9", "R"},
+        {"DA", "¹"},
+        {"DB", "û"},
+        {"DC", "}"},
+        {"DD", "ù"},
+        {"DE", "ú"},
+        {"DF", "ÿ"},
+        {"E0", "Ö"},
+        {"E1", "÷"},
+        {"E2", "S"},
+        {"E3", "T"},
+        {"E4", "U"},
+        {"E5", "V"},
+        {"E6", "W"},
+        {"E7", "X"},
+        {"E8", "Y"},
+        {"E9", "Z"},
+        {"EA", "²"},
+        {"EB", "Ô"},
+        {"EC", "\\"},
+        {"ED", "Ò"},
+        {"EE", "Ó"},
+        {"EF", "Õ"},
+        {"F0", "0"},
+        {"F1", "1"},
+        {"F2", "2"},
+        {"F3", "3"},
+        {"F4", "4"},
+        {"F5", "5"},
+        {"F6", "6"},
+        {"F7", "7"},
+        {"F8", "8"},
+        {"F9", "9"},
+        {"FA", "³"},
+        {"FB", "Û"},
+        {"FC", "]"},
+        {"FD", "Ù"},
+        {"FE", "Ú"},
+        {"FF", "*"}
 };
 
-void hex_to_bytes(const char *hex_string, unsigned char *byte_array, size_t *byte_array_len) {
-    size_t len = strlen(hex_string);
-    *byte_array_len = len / 2;
-    for (size_t i = 0; i < *byte_array_len; i++) {
-        sscanf(hex_string + 2 * i, "%2hhx", &byte_array[i]);
+
+// Function to get the description by code
+const char* getDescription(const char *code) {
+    int n = sizeof(mappings) / sizeof(CodeMap);
+    for (int i = 0; i < n; i++) {
+        if (strcmp(mappings[i].code, code) == 0) {
+            return mappings[i].description;
+        }
     }
+    return "Unknown";
 }
 
-void decode_ebcdic_to_ascii(const unsigned char *ebcdic_data, size_t length, char *ascii_string) {
-    for (size_t i = 0; i < length; i++) {
-        unsigned char ascii_char = ebcdic_to_ascii[ebcdic_data[i]];
-        // Replace non-printable characters with a placeholder (e.g., a space)
-        ascii_string[i] = isprint(ascii_char) ? ascii_char : ' ';
+// Function to translate a string of codes to the full description
+void translateCodeString(const char *input, char *output) {
+    char code[3] = {0};  // To hold each two-character code
+    output[0] = '\0';    // Ensure output is empty to start
+
+    while (*input) {
+        strncpy(code, input, 2);  // Copy two characters
+        code[2] = '\0';  // Ensure null-termination for safety
+        const char* description = getDescription(code);
+        strcat(output, description);  // Append description to output
+        strcat(output, " ");          // Add a space between descriptions
+        input += 2;  // Move to the next pair of characters
     }
-    ascii_string[length] = '\0'; // Null-terminate the ASCII string
 }
 
 //Error handling
@@ -79,14 +336,7 @@ static void trans_hex_udt(sqlite3_context *context, int argc, sqlite3_value **ar
                 char *hexText = (char *)AR_AO_SQLITE->sqlite3_value_text(argv[0]); 
                 char pRes[2000] = {0}; // Result string
 
-                unsigned char byte_array[1024];
-                size_t byte_array_len;
-
-                // Convert hex string to byte array
-                hex_to_bytes(hexText, byte_array, &byte_array_len);
-
-                // Decode EBCDIC (cp037) to ASCII
-                decode_ebcdic_to_ascii(byte_array, byte_array_len, pRes);
+                translateCodeString(hexText, pRes);
 
                 AR_AO_SQLITE->sqlite3_result_text(context, pRes, -1, SQLITE_TRANSIENT);
                 AR_AO_LOG->log_trace("Before %s", "return");
